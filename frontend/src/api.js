@@ -60,3 +60,10 @@ export function createSubmission(tool_code, offset_um) {
     body: JSON.stringify({ tool_code, offset_um: Number(offset_um) }),
   });
 }
+
+export function amendSubmission(id, offset_um) {
+  return request(`/submissions/${id}/amend`, {
+    method: "POST",
+    body: JSON.stringify({ offset_um: Number(offset_um) }),
+  });
+}

@@ -57,3 +57,29 @@ class OffsetSubmission(models.Model):
 
     def __str__(self) -> str:
         return f"{self.tool_code} {self.offset_um}µm"
+
+
+class OffsetAmendment(models.Model):
+    """待复核行改数重投的履历：记下改前值与改后值。"""
+
+    submission = models.ForeignKey(
+        OffsetSubmission,
+        on_delete=models.CASCADE,
+        related_name="amendments",
+    )
+    old_offset_um = models.IntegerField()
+    new_offset_um = models.IntegerField()
+    changed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="amendments",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self) -> str:
+        return f"{self.submission_id}: {self.old_offset_um}->{self.new_offset_um}µm"

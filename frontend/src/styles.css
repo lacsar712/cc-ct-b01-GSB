@@ -120,6 +120,41 @@ button.ghost {
   margin-top: 1rem;
 }
 
+.banner.ok {
+  background: #dcfce7;
+  color: #166534;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+
+.banner.warn {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+
+.btn-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+tr.row-selected td {
+  background: #eff6ff;
+}
+
+.old-val {
+  color: #92400e;
+  text-decoration: line-through;
+}
+
+.new-val {
+  color: #166534;
+  font-weight: 600;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
