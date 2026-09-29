@@ -8,6 +8,8 @@ import {
   login,
   setSession,
 } from "./api";
+import ReworkDesk from "./components/ReworkDesk";
+import RevisionTimeline from "./components/RevisionTimeline";
 
 const statusLabel = {
   pending: "待复核",
@@ -22,8 +24,9 @@ const roleLabel = {
 
 function readHash() {
   const raw = (location.hash || "#/").replace(/^#/, "") || "/";
-  const m = raw.match(/^\/detail\/(\d+)/);
+  let m = raw.match(/^\/detail\/(\d+)/);
   if (m) return { name: "detail", id: Number(m[1]) };
+  if (raw === "/rework") return { name: "rework", id: null };
   return { name: "home", id: null };
 }
 
@@ -43,6 +46,10 @@ function App() {
 
   function goHome() {
     location.hash = "#/";
+  }
+
+  function goRework() {
+    location.hash = "#/rework";
   }
 
   function goDetail(id) {
@@ -91,7 +98,6 @@ function App() {
     if (r.name === "detail" && r.id) loadDetail(r.id);
     if (r.name === "home") loadRows();
   });
-
   async function handleLogin(e) {
     e.preventDefault();
     setError("");
@@ -149,6 +155,16 @@ function App() {
               }}
             >
               复核总览
+            </a>
+            <a
+              href="#/rework"
+              class={route().name === "rework" ? "active" : ""}
+              onClick={(e) => {
+                e.preventDefault();
+                goRework();
+              }}
+            >
+              重投台
             </a>
           </nav>
         </Show>
@@ -267,6 +283,10 @@ function App() {
           </section>
         </Show>
 
+        <Show when={route().name === "rework"}>
+          <ReworkDesk user={user()} />
+        </Show>
+
         <Show when={route().name === "detail"}>
           <section class="card">
             <div class="toolbar">
@@ -277,20 +297,24 @@ function App() {
             </div>
             <Show when={detail()} fallback={<p class="hint">{loading() ? "加载中…" : "未找到记录"}</p>}>
               {(d) => (
-                <div class="detail-grid">
-                  <p>编号：{d().id}</p>
-                  <p>刀具：{d().tool_code}</p>
-                  <p>刀补 µm：{d().offset_um}</p>
-                  <p>状态：{statusLabel[d().status] || d().status}</p>
-                  <p class={d().verdict === "合格" ? "pass" : d().verdict === "超差" ? "fail" : ""}>
-                    结论：{d().verdict || "—"}
-                  </p>
-                  <p>提交时间：{new Date(d().created_at).toLocaleString()}</p>
-                  <p>
-                    复核时间：
-                    {d().reviewed_at ? new Date(d().reviewed_at).toLocaleString() : "—"}
-                  </p>
-                </div>
+                <>
+                  <div class="detail-grid">
+                    <p>编号：{d().id}</p>
+                    <p>刀具：{d().tool_code}</p>
+                    <p>刀补 µm：{d().offset_um}</p>
+                    <p>状态：{statusLabel[d().status] || d().status}</p>
+                    <p class={d().verdict === "合格" ? "pass" : d().verdict === "超差" ? "fail" : ""}>
+                      结论：{d().verdict || "—"}
+                    </p>
+                    <p>提交时间：{new Date(d().created_at).toLocaleString()}</p>
+                    <p>
+                      复核时间：
+                      {d().reviewed_at ? new Date(d().reviewed_at).toLocaleString() : "—"}
+                    </p>
+                  </div>
+                  <h3 class="detail-sub">改数 / 结清履历</h3>
+                  <RevisionTimeline revisions={d().revisions} />
+                </>
               )}
             </Show>
           </section>

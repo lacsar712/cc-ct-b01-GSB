@@ -57,3 +57,44 @@ class OffsetSubmission(models.Model):
 
     def __str__(self) -> str:
         return f"{self.tool_code} {self.offset_um}µm"
+
+
+class OffsetRevision(models.Model):
+    """一笔刀补的改数 / 结清履历，旧值、新值与最终结论均可对照。"""
+
+    class Kind(models.TextChoices):
+        REVISE = "revise", "改数重投"
+        SETTLE = "settle", "结清"
+
+    submission = models.ForeignKey(
+        OffsetSubmission,
+        on_delete=models.CASCADE,
+        related_name="revisions",
+    )
+    kind = models.CharField(max_length=16, choices=Kind.choices)
+    # 改数：改前旧值；结清：本次判定所吃的（改后）数字
+    offset_before = models.IntegerField()
+    # 改数：改后新值；结清不写
+    offset_after = models.IntegerField(null=True, blank=True)
+    verdict = models.CharField(
+        max_length=8,
+        choices=OffsetSubmission.Verdict.choices,
+        blank=True,
+        default="",
+    )
+    operator = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="revisions",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self) -> str:
+        if self.kind == self.Kind.REVISE:
+            return f"改数 {self.offset_before}→{self.offset_after}"
+        return f"结清 {self.offset_before} {self.verdict}"

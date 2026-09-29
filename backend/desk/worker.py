@@ -23,6 +23,7 @@ def claim_one_pending():
     from desk.models import OffsetSubmission
     from desk.services import apply_verdict
 
+    submission_id = None
     with transaction.atomic():
         submission = (
             OffsetSubmission.objects.select_for_update(skip_locked=True)
@@ -35,8 +36,11 @@ def claim_one_pending():
 
         submission.status = OffsetSubmission.Status.PROCESSING
         submission.save(update_fields=["status"])
+        submission_id = submission.id
 
-    apply_verdict(submission)
+    # 认领与结清分属两个事务：结清时重新锁行，确保吃到改数重投后的最新数字。
+    # 已被认领的行状态为「复核中」，改数接口会明确拒绝，二者互斥只有一种结局。
+    apply_verdict(submission_id)
     return True
 
 

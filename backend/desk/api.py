@@ -6,7 +6,8 @@ from ninja import NinjaAPI, Schema
 from ninja.errors import HttpError
 
 from desk.auth_utils import bearer_auth, create_access_token, verify_password
-from desk.models import OffsetSubmission, User
+from desk.models import OffsetRevision, OffsetSubmission, User
+from desk.services import RevisionError, revise_pending
 
 api = NinjaAPI(title="数控刀补复核台", version="1.0")
 
@@ -32,6 +33,17 @@ class SubmissionIn(Schema):
     offset_um: int
 
 
+class RevisionOut(Schema):
+    id: int
+    kind: str
+    kind_label: str
+    offset_before: int
+    offset_after: Optional[int]
+    verdict: str
+    operator: Optional[str]
+    created_at: datetime
+
+
 class SubmissionOut(Schema):
     id: int
     tool_code: str
@@ -40,6 +52,24 @@ class SubmissionOut(Schema):
     verdict: str
     created_at: datetime
     reviewed_at: Optional[datetime]
+    revisions: list[RevisionOut] = []
+
+
+class ReworkIn(Schema):
+    offset_um: int
+
+
+def _revision_to_out(row: OffsetRevision) -> RevisionOut:
+    return RevisionOut(
+        id=row.id,
+        kind=row.kind,
+        kind_label=row.get_kind_display(),
+        offset_before=row.offset_before,
+        offset_after=row.offset_after,
+        verdict=row.verdict or "",
+        operator=row.operator.username if row.operator_id else None,
+        created_at=row.created_at,
+    )
 
 
 def _to_out(row: OffsetSubmission) -> SubmissionOut:
@@ -51,6 +81,7 @@ def _to_out(row: OffsetSubmission) -> SubmissionOut:
         verdict=row.verdict or "",
         created_at=row.created_at,
         reviewed_at=row.reviewed_at,
+        revisions=[_revision_to_out(r) for r in row.revisions.all()],
     )
 
 
@@ -78,15 +109,18 @@ def login(request: HttpRequest, body: LoginIn):
 
 @api.get("/submissions", response=list[SubmissionOut], auth=bearer_auth)
 def list_submissions(request: HttpRequest):
-    rows = OffsetSubmission.objects.all()[:200]
+    rows = OffsetSubmission.objects.prefetch_related("revisions", "revisions__operator")[:200]
     return [_to_out(r) for r in rows]
 
 
 @api.get("/submissions/{submission_id}", response=SubmissionOut, auth=bearer_auth)
 def get_submission(request: HttpRequest, submission_id: int):
-    try:
-        row = OffsetSubmission.objects.get(pk=submission_id)
-    except OffsetSubmission.DoesNotExist:
+    row = (
+        OffsetSubmission.objects.prefetch_related("revisions", "revisions__operator")
+        .filter(pk=submission_id)
+        .first()
+    )
+    if row is None:
         raise HttpError(404, "刀补记录不存在")
     return _to_out(row)
 
@@ -104,5 +138,22 @@ def create_submission(request: HttpRequest, body: SubmissionIn):
         offset_um=body.offset_um,
         submitted_by=user,
         status=OffsetSubmission.Status.PENDING,
+    )
+    return _to_out(row)
+
+
+@api.post("/submissions/{submission_id}/revise", response=SubmissionOut, auth=bearer_auth)
+def revise_submission(request: HttpRequest, submission_id: int, body: ReworkIn):
+    user: User = request.auth
+    if not user.can_write:
+        raise HttpError(403, "当前账号只读，不能改数重投")
+    try:
+        row = revise_pending(submission_id, body.offset_um, operator=user)
+    except RevisionError as exc:
+        raise HttpError(exc.code, exc.message)
+    # 重新取一遍带履历的数据返回
+    row = (
+        OffsetSubmission.objects.prefetch_related("revisions", "revisions__operator")
+        .get(pk=row.pk)
     )
     return _to_out(row)
